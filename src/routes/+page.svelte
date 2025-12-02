@@ -1,18 +1,13 @@
 <script lang="ts">
 	import type { Member } from '$lib/types';
-	import { enhance } from '$app/forms';
 
-	// Receive data from server load function
-	let { data, form } = $props();
+	let { data } = $props();
 
-	// Process members from server data
 	let members: Member[] | null = $state(
 		data.leaderboardData ? processMemberData(data.leaderboardData.members) : null
 	);
 	let error = $state(data.error || null);
-	let showCookieInput = $state(data.showCookieInput ?? false);
-	let sessionCookie = $state('');
-	let submitting = $state(false);
+	let cacheAge = $state(data.cacheAge || 0);
 
 	/**
 	 * Process member data: convert to array, sort, and add ranks
@@ -72,85 +67,21 @@
 	}
 </script>
 
-<div class="min-h-screen bg-gray-50 py-4 sm:py-8 px-4">
+	<div class="min-h-screen bg-gray-50 py-4 sm:py-8 px-4">
 	<div class="max-w-6xl mx-auto">
-		<!-- Page title and header -->
 		<header class="text-center mb-6 sm:mb-8">
 			<h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
 				Hack Club Advent of Code Leaderboard
 			</h1>
 			<p class="text-lg sm:text-xl text-gray-600">2025</p>
+			{#if members && cacheAge > 0}
+				<p class="text-sm text-gray-500 mt-2">
+					Last updated: {Math.floor(cacheAge / 60)} minute{Math.floor(cacheAge / 60) !== 1 ? 's' : ''} ago
+				</p>
+			{/if}
 		</header>
 
-		<!-- Cookie input form -->
-		{#if showCookieInput && !members}
-			<div class="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
-				<h2 class="text-2xl font-bold text-gray-900 mb-4">Enter Your Session Cookie</h2>
-				<p class="text-gray-600 mb-6">
-					To view the leaderboard, you need to provide your Advent of Code session cookie.
-				</p>
-				
-				<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-					<img 
-						src="https://hc-cdn.hel1.your-objectstorage.com/s/v3/158ba43848ee52b84268c475155355f8ba9d75f7_cleanshot_2025-12-01_at_21.07.21.png" 
-						alt="How to find session cookie in DevTools" 
-						class="mb-4 rounded border border-blue-300 w-full"
-					/>
-					<p class="text-sm font-semibold text-blue-900 mb-2">How to find your session cookie:</p>
-					<ol class="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-						<li>Log in to <a href="https://adventofcode.com" target="_blank" class="underline">adventofcode.com</a></li>
-						<li>Open Developer Tools (F12) then go to the Application/Storage tab</li>
-						<li>Find Cookies → adventofcode.com</li>
-						<li>Copy the value of the "session" cookie</li>
-					</ol>
-				</div>
-
-				{#if form?.error || error}
-					<div class="bg-red-50 border border-red-300 rounded-lg p-4 mb-4">
-						<p class="text-red-800 text-sm">{form?.error || error?.message}</p>
-					</div>
-				{/if}
-
-				<form method="POST" action="?/setCookie" use:enhance={() => {
-					submitting = true;
-					return async ({ result, update }) => {
-						await update();
-						submitting = false;
-						// Reload the page if the form submission was successful
-						if (result.type === 'success') {
-							window.location.reload();
-						}
-					};
-				}} class="space-y-4">
-					<div>
-						<label for="session-cookie" class="block text-sm font-medium text-gray-700 mb-2">
-							Session Cookie
-						</label>
-						<input
-							id="session-cookie"
-							name="sessionCookie"
-							type="text"
-							bind:value={sessionCookie}
-							placeholder="Paste your session cookie here..."
-							class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-							required
-						/>
-					</div>
-					<button
-						type="submit"
-						disabled={submitting}
-						class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-					>
-						{submitting ? 'Loading...' : 'Load Leaderboard'}
-					</button>
-				</form>
-
-				<p class="text-xs text-gray-500 mt-4">
-					Your session cookie is stored securely in an HTTP-only cookie.
-				</p>
-			</div>
-		{:else if error}
-			<!-- Error display component -->
+		{#if error}
 			<div class="bg-red-50 border-2 border-red-300 rounded-lg p-8 max-w-2xl mx-auto">
 				<div class="flex items-start">
 					<div class="flex-shrink-0">
@@ -161,7 +92,7 @@
 					<div class="ml-4 flex-1">
 						<h2 class="text-xl font-bold text-red-900 mb-3">
 							{#if error.type === 'auth'}
-								Authentication Required
+								Authentication Error
 							{:else if error.type === 'config'}
 								Configuration Error
 							{:else}
@@ -172,30 +103,7 @@
 							{error.message}
 						</p>
 						
-						{#if data.leaderboardCode && error.type !== 'config'}
-							<div class="bg-white border border-red-200 rounded-lg p-4 mb-4">
-								<p class="text-sm font-semibold text-gray-700 mb-1">Leaderboard Code:</p>
-								<code class="text-lg font-mono text-gray-900 bg-gray-100 px-3 py-1 rounded">
-									{data.leaderboardCode}
-								</code>
-							</div>
-						{/if}
-						
-						{#if error.type === 'auth'}
-							<p class="text-sm text-red-700 mt-4">
-								Please check your .env file and ensure AOC_SESSION_COOKIE is set correctly.
-							</p>
-						{:else if error.type === 'network'}
-							<div class="bg-white border border-red-200 rounded-lg p-4 mt-4">
-								<p class="text-sm font-semibold text-gray-700 mb-2">Troubleshooting Steps:</p>
-								<ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
-									<li>Check your internet connection</li>
-									<li>Verify the Advent of Code website is accessible</li>
-									<li>Refresh the page to retry</li>
-									<li>Check if your session cookie is still valid</li>
-								</ul>
-							</div>
-						{:else if error.type === 'config'}
+						{#if error.type === 'auth' || error.type === 'config'}
 							<div class="bg-white border border-red-200 rounded-lg p-4 mt-4">
 								<p class="text-sm font-semibold text-gray-700 mb-2">Required Environment Variables:</p>
 								<ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
@@ -206,32 +114,21 @@
 									Please set these variables in your <code class="bg-gray-100 px-2 py-0.5 rounded">.env</code> file and restart the server.
 								</p>
 							</div>
+						{:else if error.type === 'network'}
+							<div class="bg-white border border-red-200 rounded-lg p-4 mt-4">
+								<p class="text-sm font-semibold text-gray-700 mb-2">Troubleshooting Steps:</p>
+								<ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
+									<li>Wait a moment and refresh the page</li>
+									<li>Check your internet connection</li>
+									<li>Verify the Advent of Code website is accessible</li>
+									<li>Check server logs for more details</li>
+								</ul>
+							</div>
 						{/if}
 					</div>
 				</div>
 			</div>
 		{:else if members}
-			<!-- Clear cookie button -->
-			<div class="mb-4 text-right">
-				<form method="POST" action="?/clearCookie" use:enhance={() => {
-					return async ({ result, update }) => {
-						await update();
-						// Reload the page after clearing the cookie
-						if (result.type === 'success') {
-							window.location.reload();
-						}
-					};
-				}}>
-					<button
-						type="submit"
-						class="text-sm text-gray-600 hover:text-gray-900 underline"
-					>
-						Use Different Cookie
-					</button>
-				</form>
-			</div>
-
-			<!-- Leaderboard table -->
 			<div class="bg-white rounded-lg shadow-lg overflow-hidden">
 				<div class="overflow-x-auto">
 					<table class="w-full" role="table" aria-label="Advent of Code Leaderboard">
